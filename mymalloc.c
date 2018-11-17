@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#define TOTAL_RAM 2500
+#define TOTAL_RAM 25000
 #define RAM_HEADER_SIZE 100
 #define BLOCK_HEADER_SIZE sizeof(TOTAL_RAM)
 #define HEADER_START 1
@@ -10,11 +10,12 @@
 static char RAM[TOTAL_RAM];
 
 // prototype
-// void *allocVar(int);
-// void *mymalloc(int);
-// void printRAM();
-// void initRAM();
-// void *bestFit(int);
+void *defVar(int);
+void *mymalloc(int);
+void printRAM();
+void initRAM();
+void *bestFit(int);
+int delVar(int *);
 
 /**
  * initialize ram if not initialized
@@ -28,59 +29,76 @@ void initRAM() {
         RAM[RAM_BODY_START] = 'f';                      // state very first block is free
         * (int *) &RAM[RAM_BODY_START + 1] = TOTAL_RAM - RAM_HEADER_SIZE - 1 ;      // state the size of free block
     }
-
-    // RAM[RAM_BODY_START] = 'a';
-    // * (int *) &RAM[RAM_BODY_START + 1] = 10;
-    
-    // RAM[RAM_BODY_START+BLOCK_HEADER_SIZE+11] = 'f';
-    // * (int *) &RAM[RAM_BODY_START+BLOCK_HEADER_SIZE+12] = 3000;
 }
 
 /**
- * allocate a variable from RAM array
+ * allocate a slot from RAM_HEADER for a variable
+ * RAM_HEADER structure: [status bit][slot 1:[status bit][slot]][slot 2:[status bit][slot]]
+ * i 00000 00000 000...00
+ * i a2032 a2342 000...00
 */
-void *allocVar(int size) {
+void *defVar(int value) {
+    void *pointer = &RAM[HEADER_START];
+
+    while (pointer < (void *) &RAM[RAM_BODY_START]) {
+        if (*(char *)pointer != 'a') {
+            *(char *)pointer = 'a';
+            *(int *)((char *)pointer + 1) = value;
+            return (int *)((char *)pointer + 1);
+        }
+
+        pointer += BLOCK_HEADER_SIZE + 1;
+    }
+    return NULL;
+}
+
+/**
+ * release a slot from RAM_HEADER 
+ */
+int delVar(int * pointer) {
+    *((char *)pointer - 1) = 'f';
+    return *pointer;
 }
 
 /**
  * bestFit algorithm for find the best location to allocate memory
 */
 void *bestFit(int requiredSize) {
-    int currentPosition = RAM_BODY_START;
-    int bestPosition = currentPosition;
-    int previousLeftSpace = TOTAL_RAM;
-    int found = 0;
-int i = 0;
-    while (currentPosition < TOTAL_RAM && i<10) {
-        i++;
-        int currentBlockSize = *(int *) &RAM[currentPosition + 1];
-        printf("finding location, current@ram %d %p status:%c\n", currentPosition, &RAM[currentPosition], RAM[currentPosition]);
+    printRAM();
+    int *currentPosition = defVar(RAM_BODY_START);
+    int *bestPosition = defVar(*currentPosition);
+    int *previousLeftSpace = defVar(TOTAL_RAM);
+    int *found = defVar(0);
 
-        if (currentBlockSize > requiredSize) {       // found enough space
-            if (RAM[currentPosition] == 'f') {
-                printf("found a location@ram %d %p\n", currentPosition, &RAM[currentPosition]);
+    printf("Finding location for %d bytes\n", requiredSize);
+
+    while (*currentPosition < TOTAL_RAM) {
+        int currentBlockSize = *(int *) &RAM[*currentPosition + 1];
+
+        if (currentBlockSize > requiredSize) {       // *found enough space
+            if (RAM[*currentPosition] == 'f') {
                 int leftSpace = currentBlockSize - requiredSize;
-                found = 1;
+                *found = 1;
 
-                if (leftSpace < previousLeftSpace) {                // found a better location
-                    printf("found a better location@ram %d %p leftSpace: %d\n", currentPosition, &RAM[currentPosition] ,leftSpace);
-                    previousLeftSpace = currentBlockSize;
-                    bestPosition = currentPosition;
+                if (leftSpace < *previousLeftSpace) {                // *found a better location
+                    *previousLeftSpace = currentBlockSize;
+                    *bestPosition = *currentPosition;
                 }
-            } else {
-                printf("Not a hole %c", RAM[currentPosition]);
             }
-
         }
 
-        printf("currentPosition %d\n", currentPosition);
-        printf("currentPosition %c\n", RAM[currentPosition]);
-        
-        currentPosition += *(int *) &RAM[currentPosition + 1] + BLOCK_HEADER_SIZE + 1;
-
+        *currentPosition += *(int *) &RAM[*currentPosition + 1] + BLOCK_HEADER_SIZE + 1;
     }
 
-    if (found) return &RAM[bestPosition];
+    delVar(currentPosition);
+    delVar(previousLeftSpace);
+
+    if (delVar(found)) {
+        printf("Found a location @ %p\n", &RAM[*bestPosition]);
+        return &RAM[delVar(bestPosition)];
+    }
+
+    printf ("ERROR! not enough space!!\n");
     return NULL;
 }
 
@@ -91,21 +109,16 @@ void * mymalloc(int requiredSize) {
     initRAM();      // initialize RAM if not already
 
     char *allocPosition = bestFit(requiredSize);
-    if (allocPosition == NULL) return NULL;
-
-    printf("hole %c %p\n", *allocPosition, allocPosition);
+    if (allocPosition == NULL) return NULL;         // EXITING :: not *found suitable location
 
     // allocating
-    int freeBlockSize = *(int *)(allocPosition + 1);
-    // printf("freeblcksize %d", *(int *)(allocPosition + 1));
+    int *freeBlockSize = defVar(*(int *)(allocPosition + 1));
     *(char *)allocPosition = 'a';                   // change flag to 'allocated'
     *(int *)(allocPosition + 1) = requiredSize;    // store the size of block
     *(char *)(allocPosition + 1 + BLOCK_HEADER_SIZE + requiredSize) = 'f';         // allocate left space as a free block
-    *(int *)(allocPosition + 1 + BLOCK_HEADER_SIZE +  requiredSize + 1) = freeBlockSize - requiredSize;        // store left space's (block) size
+    *(int *)(allocPosition + 1 + BLOCK_HEADER_SIZE +  requiredSize + 1) = delVar(freeBlockSize) - requiredSize;        // store left space's (block) size
 
-    printf("%s\n", allocPosition + 1 + (int) BLOCK_HEADER_SIZE);
-    // printRAM();
-    return allocPosition + 1 + (int) BLOCK_HEADER_SIZE;
+    return allocPosition + BLOCK_HEADER_SIZE + 1;
 }
 
 /**
@@ -113,7 +126,7 @@ void * mymalloc(int requiredSize) {
  * 
 */
 void printRAM() {
-    for(int i = 100; i < 160; i++) {
+    for(int i = 0; i < 20; i++) {
         if (i%100 == 0) printf("\n");
 
         printf("%p : ram@%d: %d\tletter: %c\tsize: %d\n", &RAM[i], i, RAM[i], RAM[i], (int) *(int *) &RAM[i]);
@@ -127,10 +140,13 @@ int main(int argc, char const *argv[])
 {
     mymalloc(10);
     mymalloc(3);
-    mymalloc(3);
+    for (int i=0; i<50; i++){
+        mymalloc(3);
+    }
     mymalloc(5);
     mymalloc(5);
-    printRAM();
+
+    printRAM(30);
     
     return 0;
 }

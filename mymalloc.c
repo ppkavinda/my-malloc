@@ -1,21 +1,23 @@
 #include <stdio.h>
 
 #define TOTAL_RAM 25000
-#define RAM_HEADER_SIZE 100
+#define RAM_HEADER_SIZE 30
 #define BLOCK_HEADER_SIZE sizeof(TOTAL_RAM)
 #define HEADER_START 1
 #define HEADER_END HEADER_START + RAM_HEADER_SIZE
 #define RAM_BODY_START HEADER_END
 
+#define activePrint 1
+
 static char RAM[TOTAL_RAM];
 
 // prototype
-void *defVar(int);
-void *mymalloc(int);
-void printRAM();
-void initRAM();
-void *bestFit(int);
 int delVar(int *);
+void *defVar(int);
+void *bestFit(int);
+void *mymalloc(int);
+void initRAM();
+void printRAM();
 void myfree(void *);
 void mergeFreeBlocks(int *, int *);
 
@@ -25,7 +27,7 @@ void mergeFreeBlocks(int *, int *);
 void initRAM() {
     
     if (RAM[0] == 0) {      // not initialized
-        printf("Initilizing RAM\n");
+        if (activePrint) printf("Initilizing RAM\n");
 
         RAM[0] = 'i';       // i for initilized
         RAM[RAM_BODY_START] = 'f';                      // state very first block is free
@@ -72,10 +74,10 @@ void *bestFit(int requiredSize) {
     int *found = defVar(0);
     int *currentBlockSize = defVar(*(int *) &RAM[*currentPosition + 1]);
 
-    printf("Finding location for %d bytes\n", requiredSize);
+    if (activePrint) printf("\nSearching for %d bytes\n", requiredSize);
 
     while (*currentPosition < TOTAL_RAM) {
-        printf("searching...%d %p size: %d\n", *currentPosition, &RAM[*currentPosition], *currentBlockSize);
+        if (activePrint) printf("searching...%d %p size: %d\n", *currentPosition, &RAM[*currentPosition], *currentBlockSize);
         
         *currentBlockSize = *(int *) &RAM[*currentPosition + 1];
 
@@ -100,11 +102,11 @@ void *bestFit(int requiredSize) {
     delVar(currentBlockSize);
 
     if (delVar(found)) {
-        printf("Found a location @ %p\n", &RAM[*bestPosition]);
+        if (activePrint) printf("Found a location @ %p\n", &RAM[*bestPosition]);
         return &RAM[delVar(bestPosition)];
     }
 
-    printf ("ERROR! not enough space!!\n");
+    if (activePrint) printf ("ERROR! not enough space!!\n");
     return NULL;
 }
 
@@ -121,10 +123,11 @@ void * mymalloc(int requiredSize) {
     int *completeBlockSize = defVar(*(int *)(allocPosition + 1));
     *(char *)allocPosition = 'a';                   // change flag to 'allocated'
 
-    if (*completeBlockSize - requiredSize >=  BLOCK_HEADER_SIZE + 1) {
+    if (*completeBlockSize - requiredSize >  BLOCK_HEADER_SIZE + 1) {
         *(int *)(allocPosition + 1) = requiredSize;    // store the size of block
-        *(char *)(allocPosition + 1 + BLOCK_HEADER_SIZE + requiredSize) = 'f';         // allocate left space as a free block
-        *(int *)(allocPosition + 1 + BLOCK_HEADER_SIZE +  requiredSize + 1) = delVar(completeBlockSize) - requiredSize;        // store left space's (block) size
+        *(char *)(allocPosition + 1 + BLOCK_HEADER_SIZE + requiredSize) = 'f';           // allocate left space as a free block
+        *(int *)(allocPosition + 1 + BLOCK_HEADER_SIZE +  requiredSize + 1) = 
+                delVar(completeBlockSize) - requiredSize - BLOCK_HEADER_SIZE - 1;        // store left space's (block) size
 
     }
     
@@ -145,7 +148,7 @@ void mergeFreeBlocks(int *currentLocation, int *previousLocation) {
         *(int *) &(RAM[*currentLocation + 1]) += *(int *) &RAM[*nextLocation + 1];      // merge it with the current block
     }
 
-    if (RAM[*previousLocation]  == 'f' && *currentLocation != *previousLocation) {                                                // if previous block is free
+    if (RAM[*previousLocation]  == 'f' && *currentLocation != *previousLocation) {      // if previous block is free
         *(int *) &(RAM[*previousLocation + 1]) += *(int *) &RAM[*currentLocation + 1];  // merge current block with the previous one
     }
 
@@ -176,28 +179,73 @@ void myfree(void *targetLocation) {
 
 
 /**
- * just for print RAM array
+ * just for print RAM array byte by byte
  * 
 */
-void printRAM() {
-    for(int i = 100; i < 130; i++) {
+void testprint() {
+    for(int i = 00; i < 33; i++) {
         if (i%100 == 0) printf("\n");
 
-        printf("%p : ram@%d: %d\tletter: %c\tsize: %d\n", &RAM[i], i, RAM[i], RAM[i], (int) *(int *) &RAM[i]);
+        printf("%p : ram@%d: %d\tletter: %c\tsize: %d\n", 
+            &RAM[i], i, RAM[i], RAM[i], 
+            (int) *(int *) &RAM[i]);
     }
 
     printf("\n");
 }
 
+/**
+ * print RAM pretty
+*/
+void printRAM() {
+    int current = 1;
+    int header = 0;
+
+    if (header) {
+        printf("\n+------------------------------%s------------------------------+\n", 
+            (RAM[0] == 'i') ? "INITIALIZED" : "-----------");
+
+        for (;current < RAM_HEADER_SIZE; current+=5) {
+            
+            printf("|\t%p @ RAM[%.5d] : value: %.5d :  status: %9s\t|\n", 
+                &RAM[current+1], current, 
+                *(int *)&RAM[current+1], 
+                (RAM[current] == 'A' ? "ALLOCATED" : "FREE")
+            );
+
+        printf("+-----------------------------------------------------------------------+\n");
+        }
+
+        printf("+-----------------------------RAM CONTENT-------------------------------+\n");
+    }
+
+    printf("\n+-----------------------------------------------------------------------+\n");
+
+    current = RAM_BODY_START;
+
+    while (current < TOTAL_RAM) {
+
+        printf("|\t%p @ RAM[%.5d] : size: %.5d :  status: %9s\t|", 
+            &RAM[current], current, 
+            *(int *)&RAM[current + 1], 
+            (RAM[current] == 'f' ? "FREE" : "ALLOCATED")
+        );
+
+        printf("\n+-----------------------------------------------------------------------+\n");
+        
+        current += *(int *)&RAM[current+1] + BLOCK_HEADER_SIZE + 1;
+    }
+}
 int main(int argc, char const *argv[])
 {
     void *one = mymalloc(8);
     void *two = mymalloc(3);
     myfree(one);
-    mymalloc(8);
+    mymalloc(2);
+    // mymalloc(1);
 
     // for (int i=0; i<50; i++){
-    //     mymalloc(3);
+        // mymalloc(i + 3);
     // }
     // myfree(two);
     // mymalloc(2);
@@ -205,6 +253,7 @@ int main(int argc, char const *argv[])
     // mymalloc(5);
 
     printRAM();
+    // testprint();
     
     return 0;
 }

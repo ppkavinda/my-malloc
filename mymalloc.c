@@ -7,7 +7,7 @@
 #define HEADER_END HEADER_START + RAM_HEADER_SIZE
 #define RAM_BODY_START HEADER_END
 
-#define activePrint 1
+#define enableMessages 0
 
 static char RAM[TOTAL_RAM];
 
@@ -25,9 +25,8 @@ void mergeFreeBlocks(int *, int *);
  * initialize ram if not initialized
 */
 void initRAM() {
-    
     if (RAM[0] == 0) {      // not initialized
-        if (activePrint) printf("Initilizing RAM\n");
+        if (enableMessages) printf("Initilizing RAM\n");
 
         RAM[0] = 'i';       // i for initilized
         RAM[RAM_BODY_START] = 'f';                      // state very first block is free
@@ -74,15 +73,16 @@ void *bestFit(int requiredSize) {
     int *found = defVar(0);
     int *currentBlockSize = defVar(*(int *) &RAM[*currentPosition + 1]);
 
-    if (activePrint) printf("\nSearching for %d bytes\n", requiredSize);
+    if (enableMessages) printf("\nSearching for %d bytes\n", requiredSize);
 
     while (*currentPosition < TOTAL_RAM) {
-        if (activePrint) printf("searching...%d %p size: %d\n", *currentPosition, &RAM[*currentPosition], *currentBlockSize);
+        if (enableMessages) 
+            printf("searching...%d %p size: %d\n", 
+                *currentPosition, &RAM[*currentPosition], *currentBlockSize);
         
         *currentBlockSize = *(int *) &RAM[*currentPosition + 1];
 
         if (*currentBlockSize >= requiredSize) {       // found enough space
-        // printf("found one");
             if (RAM[*currentPosition] == 'f') {
                 int leftSpace = *currentBlockSize - requiredSize;
                 *found = 1;
@@ -102,11 +102,11 @@ void *bestFit(int requiredSize) {
     delVar(currentBlockSize);
 
     if (delVar(found)) {
-        if (activePrint) printf("Found a location @ %p\n", &RAM[*bestPosition]);
+        if (enableMessages) printf("Found a location @ %p\n", &RAM[*bestPosition]);
         return &RAM[delVar(bestPosition)];
     }
 
-    if (activePrint) printf ("ERROR! not enough space!!\n");
+    if (enableMessages) printf ("ERROR! not enough space!!\n");
     return NULL;
 }
 
@@ -117,21 +117,21 @@ void * mymalloc(int requiredSize) {
     initRAM();      // initialize RAM if not already
 
     char *allocPosition = bestFit(requiredSize);
-    if (allocPosition == NULL) return NULL;         // EXITING :: not *found suitable location
+    if (allocPosition == NULL) return NULL;         // EXITING :: not found suitable location
 
     // allocating
     int *completeBlockSize = defVar(*(int *)(allocPosition + 1));
     *(char *)allocPosition = 'a';                   // change flag to 'allocated'
 
-    if (*completeBlockSize - requiredSize >  BLOCK_HEADER_SIZE + 1) {
+    if (*completeBlockSize - requiredSize >  BLOCK_HEADER_SIZE + 1) {               // the block has spare space to allocate a new block
         *(int *)(allocPosition + 1) = requiredSize;    // store the size of block
         *(char *)(allocPosition + 1 + BLOCK_HEADER_SIZE + requiredSize) = 'f';           // allocate left space as a free block
         *(int *)(allocPosition + 1 + BLOCK_HEADER_SIZE +  requiredSize + 1) = 
-                delVar(completeBlockSize) - requiredSize - BLOCK_HEADER_SIZE - 1;        // store left space's (block) size
+
+        delVar(completeBlockSize) - requiredSize - BLOCK_HEADER_SIZE - 1;        // store left space's (block) size
 
     }
     
-
     return allocPosition + BLOCK_HEADER_SIZE + 1;
 }
 
@@ -177,7 +177,6 @@ void myfree(void *targetLocation) {
     delVar(previousLocation);
 }
 
-
 /**
  * just for print RAM array byte by byte
  * 
@@ -199,39 +198,39 @@ void testprint() {
 */
 void printRAM() {
     int current = 1;
-    int header = 0;
+    int toggleHeader = 0;
 
-    if (header) {
-        printf("\n+------------------------------%s------------------------------+\n", 
+    if (toggleHeader) {
+        printf("\n+---------------------------------%s-----------------------------------+\n", 
             (RAM[0] == 'i') ? "INITIALIZED" : "-----------");
 
         for (;current < RAM_HEADER_SIZE; current+=5) {
             
-            printf("|\t%p @ RAM[%.5d] : value: %.5d :  status: %9s\t|\n", 
+            printf("|\t%p @ RAM[%.5d] : value: %.5d :  status: %9s\t\t|\n", 
                 &RAM[current+1], current, 
                 *(int *)&RAM[current+1], 
                 (RAM[current] == 'A' ? "ALLOCATED" : "FREE")
             );
 
-        printf("+-----------------------------------------------------------------------+\n");
+        printf("+-------------------------------------------------------------------------------+\n");
         }
 
-        printf("+-----------------------------RAM CONTENT-------------------------------+\n");
+        printf("+---------------------------------RAM CONTENT-----------------------------------+");
     }
 
-    printf("\n+-----------------------------------------------------------------------+\n");
+    printf("\n+-------------------------------------------------------------------------------+\n");
 
     current = RAM_BODY_START;
 
     while (current < TOTAL_RAM) {
 
-        printf("|\t%p @ RAM[%.5d] : size: %.5d :  status: %9s\t|", 
+        printf("|\t%p @ RAM[%.5d] : size: %.5d :  status: %9s  \t|", 
             &RAM[current], current, 
             *(int *)&RAM[current + 1], 
             (RAM[current] == 'f' ? "FREE" : "ALLOCATED")
         );
 
-        printf("\n+-----------------------------------------------------------------------+\n");
+        printf("\n+-------------------------------------------------------------------------------+\n");
         
         current += *(int *)&RAM[current+1] + BLOCK_HEADER_SIZE + 1;
     }
@@ -242,15 +241,15 @@ int main(int argc, char const *argv[])
     void *two = mymalloc(3);
     myfree(one);
     mymalloc(2);
-    // mymalloc(1);
+    mymalloc(1);
 
-    // for (int i=0; i<50; i++){
-        // mymalloc(i + 3);
-    // }
-    // myfree(two);
-    // mymalloc(2);
-    // mymalloc(5);
-    // mymalloc(5);
+    for (int i=0; i<50; i++){
+        mymalloc(i + 3);
+    }
+    mymalloc(2);
+    mymalloc(5);
+    mymalloc(5);
+    myfree(two);
 
     printRAM();
     // testprint();

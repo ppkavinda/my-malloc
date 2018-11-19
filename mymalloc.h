@@ -15,10 +15,10 @@ static char RAM[TOTAL_RAM];
 int delVar(int *);
 int *defVar(int);
 void *bestFit(int);
-void *mymalloc(int);
+void *MyMalloc(int);
 void initRAM();
 void printRAM();
-void myfree(void *);
+void MyFree(void *);
 void mergeFreeBlocks(int *, int *);
 
 /**
@@ -111,9 +111,9 @@ void *bestFit(int requiredSize) {
 }
 
 /**
- * actuall mymalloc
+ * actuall MyMalloc
 */
-void * mymalloc(int requiredSize) {
+void * MyMalloc(int requiredSize) {
     initRAM();      // initialize RAM if not already
 
     char *allocPosition = (char *) bestFit(requiredSize);
@@ -156,11 +156,11 @@ void mergeFreeBlocks(int *currentLocation, int *previousLocation) {
 }
 
 /**
- * actual myfree
+ * actual MyFree
  * find the targetLocation & define it as free
  * if adjecent blocks are free merge them
  */
-void myfree(void *targetLocation) {
+void MyFree(void *targetLocation) {
     int *currentLocation = defVar(RAM_BODY_START);
     int *previousLocation = defVar(RAM_BODY_START);
 

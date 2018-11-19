@@ -3,15 +3,15 @@
 
 int main(int argc, char const *argv[])
 {
-    void *one = mymalloc(8);
-    void *two = mymalloc(3);
-    myfree(one);
-    mymalloc(2);
-    mymalloc(1);
-    mymalloc(2);
-    mymalloc(5);
-    mymalloc(5);
-    myfree(two);
+    void *one = MyMalloc(8);
+    void *two = MyMalloc(3);
+    MyFree(one);
+    MyMalloc(2);
+    MyMalloc(1);
+    MyMalloc(2);
+    MyMalloc(5);
+    MyMalloc(5);
+    MyFree(two);
 
     printRAM();
     // testprint();
